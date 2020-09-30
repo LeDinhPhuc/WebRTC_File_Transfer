@@ -1,10 +1,11 @@
 {
   "name": "data-file-transfer",
   "version": "1.0.0",
-  "description": "server",
+  "description": "webRTC",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon index.js",
+    "start": "nodemon server/index.js",
+    "server": "nodemon server/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Phúc Lê",
@@ -12,6 +13,7 @@
   "dependencies": {
     "express": "^4.17.1",
     "nodemon": "^2.0.4",
-    "socket.io": "^2.3.0"
+    "socket.io": "^2.3.0",
+    "socket.io-client": "^2.3.0"
   }
 }

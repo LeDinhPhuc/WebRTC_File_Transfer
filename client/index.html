@@ -1,286 +1,58 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" href="./public/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>WebRTC File Transfer</title>
-  </head>
+<html>
 
-  <body>
-    <form id="fileInfo">
-      <input type="file" id="fileInput" name="files" />
-    </form>
-    <ul id="files">
-      <a id="download"></a>
-    </ul>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.0.1/socket.io.js"></script>
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="WebRTC code samples">
+  <meta name="viewport" content="width=device-width, user-scalable=yes, initial-scale=1, maximum-scale=1">
+  <meta itemprop="description" content="Client-side WebRTC code samples">
+  <meta itemprop="image" content="public/images/favicon.ico">
+  <meta itemprop="name" content="WebRTC code samples">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta id="theme-color" name="theme-color" content="#ffffff">
 
-    <script>
-      function getParameterByName(name, url) {
-        if (!url) url = window.location.href;
-        switch (name) {
-          case "room":
-            return url;
-          default:
-            return url;
-        }
-      }
+  <base target="_blank">
 
-      const fileInput = document.querySelector("input#fileInput");
-      const downloadAnchor = document.querySelector("a#download");
+  <title>Transmit text</title>
 
-      // this function use to get url parameters
-      let room = getParameterByName("room");
-      let userID = getParameterByName("userid");
-      let name = getParameterByName("name");
-      let peer_connection = null;
+  <link rel="icon" sizes="192x192" href="public/images/favicon.ico">
+  <link rel="stylesheet" href="public/css/main.css" />
+</head>
 
-      /** CONFIG **/
-      const SIGNALING_SERVER = "http://localhost:5000/"; //your  node server addres  or  IP adress
-      const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
+<body>
 
-      let socket = null;
-      /* our socket.io connection to our webserver */
-      let peers = {};
-      /* keep track of our peer connections, indexed by peer_id (aka socket.io id) */
-      let peer_media_elements = {};
-      /* keep track of our <video>/<audio> tags, indexed by peer_id */
-      $(document).ready(function (a) {
-        socket = io.connect(SIGNALING_SERVER);
-        //----------------------------------------------------------------------->>>>> Files Send Start
-        const BYTES_PER_CHUNK = 1024;
-        let file;
-        let currentChunk;
-        let fileInput = $("input[type=file]");
-        let fileReader = new FileReader();
+  <div id="container">
+    <h1>
+      <a href="//webrtc.github.io/samples/" title="WebRTC samples homepage">WebRTC samples</a>
+      <span>Transmit text</span>
+    </h1>
 
-        function readNextChunk() {
-          let start = BYTES_PER_CHUNK * currentChunk;
-          let end = Math.min(file.size, start + BYTES_PER_CHUNK);
-          fileReader.readAsArrayBuffer(file.slice(start, end));
-        }
+    <div id="buttons">
+      <button id="startButton">Start</button>
+      <button id="sendButton" disabled>Send</button>
+      <button id="closeButton" disabled>Stop</button>
+    </div>
 
-        fileReader.onload = function () {
-          socket.emit("file-send-room-result", fileReader.result);
-          // create cadidate and use Datachannel to send file
-          currentChunk++;
-          if (BYTES_PER_CHUNK * currentChunk < file.size) {
-            readNextChunk();
-          }
-        };
+    <div id="sendReceive">
+      <div id="send">
+        <h2>Send</h2>
+        <textarea id="dataChannelSend" disabled placeholder="Press Start, enter some text, then press Send."></textarea>
+      </div>
+      <div id="receive">
+        <h2>Receive</h2>
+        <textarea id="dataChannelReceive" disabled></textarea>
+      </div>
+    </div>
 
-        fileInput.on("change", function () {
-          file = fileInput[0].files[0];
-          currentChunk = 0;
-          // send some metadata about our file
-          // to the receiver
-          socket.emit(
-            "file-send-room",
-            JSON.stringify({
-              fileName: file.name,
-              fileSize: file.size,
-            })
-          );
-          readNextChunk();
-        });
+    <p>View the console to see logging.</p>
 
-        let incomingFileInfo;
-        let incomingFileData;
-        let bytesReceived;
-        let downloadInProgress = false;
+    <p>The <code>RTCPeerConnection</code> objects <code>localConnection</code> and <code>remoteConnection</code> are in
+      global scope, so you can inspect them in the console as well.</p>
+  </div>
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script> -->
+  <script src="/node_modules/socket.io-client/dist/socket.io.js"></script>
+  <script src="public/js/main.js" async></script>
 
-        socket.on("file-out-room", function (data) {
-          console.log("start download data ", data);
-          startDownload(data);
-        });
+</body>
 
-        socket.on("file-out-room-result", function (data) {
-          console.log("progressDownload ", data);
-          progressDownload(data);
-        });
-
-        function startDownload(data) {
-          incomingFileInfo = JSON.parse(data.toString());
-          incomingFileData = [];
-          bytesReceived = 0;
-          downloadInProgress = true;
-          console.log(
-            "incoming file <b>" +
-              incomingFileInfo.fileName +
-              "</b> of " +
-              incomingFileInfo.fileSize +
-              " bytes"
-          );
-        }
-
-        function progressDownload(data) {
-          bytesReceived += data.byteLength;
-          incomingFileData.push(data);
-          console.log(
-            "progress: " +
-              ((bytesReceived / incomingFileInfo.fileSize) * 100).toFixed(2) +
-              "%"
-          );
-          if (bytesReceived === incomingFileInfo.fileSize) {
-            endDownload();
-          }
-        }
-
-        function endDownload() {
-          downloadInProgress = false;
-          let blob = new Blob(incomingFileData);
-          let a = document.createElement("a");
-          const files = document.getElementById("files");
-          files.appendChild(a);
-          a.style = "display: block";
-          let url = window.URL.createObjectURL(blob);
-          a.href = url;
-          a.download = incomingFileInfo.fileName;
-          a.innerHTML = incomingFileInfo.fileName;
-          // a.click();
-          window.URL.revokeObjectURL(url);
-        }
-
-        //==================================================================<<< Filse Send End
-
-        function join_chat_channel(channel, userdata) {
-          socket.emit("join-room", { channel: channel, userdata: userdata });
-        }
-
-        socket.on("connect", function (userID) {
-          console.log("Connected to signaling server");
-          name = socket.id;
-          userID = socket.id;
-          join_chat_channel(room, { name: name, userID: userID });
-        });
-
-        socket.on("room-user", function (data) {
-          console.log(data);
-          $("#online-user").append(
-            "<tr><td>Name = " +
-              data.userdata.name +
-              " <br> User ID= " +
-              data.userdata.userID +
-              '</td><td><button class="call" id="' +
-              data.userdata.userID +
-              '">Call</button></td></tr>'
-          );
-        });
-        socket.on("addPeer-room", function (config) {
-          console.log("Signaling server said to add peer:", config);
-          const { peer_id } = config;
-          if (peer_id in peers) {
-            console.log("Already connected to peer ", peer_id);
-          }
-
-          peer_connection = new RTCPeerConnection(
-            { iceServers: ICE_SERVERS },
-            { optional: [{ DtlsSrtpKeyAgreement: true }] }
-            // Chrome and Firefox to interoperate.
-          );
-
-          peers[peer_id] = peer_connection;
-
-          peer_connection.onicecandidate = function (event) {
-            console.log("event cadidate :", event.candidate);
-            if (event.candidate == null) {
-              return;
-            }
-
-            socket.emit("relayICECandidate-room", {
-              peer_id,
-              ice_candidate: {
-                sdpMLineIndex: event.candidate.sdpMLineIndex,
-                candidate: event.candidate.candidate,
-              },
-            });
-          };
-        });
-        /**
-         * Peers exchange session descriptions which contains information
-         * about their audio / video settings and that sort of stuff. First
-         * the 'offerer' sends a description to the 'answerer' (with type
-         * "offer"), then the answerer sends one back (with type "answer").
-         */
-        socket.on("sessionDescription-room", function (config) {
-          console.log("Remote description received: ", config);
-          let { peer_id } = config;
-          let peer = peers[peer_id];
-          let { remote_description, session_description } = config;
-          console.log({ session_description });
-
-          let desc = new RTCSessionDescription(remote_description);
-          let stuff = peer.setRemoteDescription(
-            desc,
-            function () {
-              console.log("setRemoteDescription succeeded");
-
-              if (remote_description.type == "offer") {
-                console.log("Creating answer");
-                peer.createAnswer(
-                  function (local_description) {
-                    console.log("Answer description is: ", local_description);
-                    peer.setLocalDescription(
-                      local_description,
-                      function () {
-                        socket.emit("relaySessionDescription-room", {
-                          peer_id: peer_id,
-                          session_description: local_description,
-                        });
-                        console.log("Answer setLocalDescription succeeded");
-                      },
-                      function () {
-                        Alert("Answer setLocalDescription failed!");
-                      }
-                    );
-                  },
-                  function (error) {
-                    console.log("Error creating answer: ", error);
-                    console.log({ peer });
-                  }
-                );
-              }
-            },
-            function (error) {
-              console.log("setRemoteDescription error: ", error);
-            }
-          );
-          console.log("Description Object: ", desc);
-        });
-        /**
-         * The offerer will send a number of ICE Candidate blobs to the answerer so they
-         * can begin trying to find the best path to one another on the net.
-         */
-        socket.on("iceCandidate-room", function (config) {
-          let peer = peers[config.peer_id];
-          let ice_candidate = config.ice_candidate;
-          peer.addIceCandidate(new RTCIceCandidate(ice_candidate));
-        });
-        /**
-         * When a user leaves a channel (or is disconnected from the
-         * signaling server) everyone will recieve a 'removePeer' message
-         * telling them to trash the media channels they have open for those
-         * that peer. If it was this client that left a channel, they'll also
-         * receive the removePeers. If this client was disconnected, they
-         * wont receive removePeers, but rather the
-         * signaling_socket.on('disconnect') code will kick in and tear down
-         * all the peer sessions.
-         */
-        socket.on("removePeer-room", function (config) {
-          console.log("Signaling server said to remove peer:", config);
-          let peer_id = config.peer_id;
-          if (peer_id in peer_media_elements) {
-            peer_media_elements[peer_id].remove();
-          }
-          if (peer_id in peers) {
-            peers[peer_id].close();
-          }
-          delete peers[peer_id];
-          delete peer_media_elements[config.peer_id];
-        });
-      });
-    </script>
-  </body>
 </html>
