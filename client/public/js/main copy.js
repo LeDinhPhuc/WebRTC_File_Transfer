@@ -65,6 +65,7 @@ function createConnection() {
   console.log("Created send data channel");
 
   localConnection.onicecandidate = (e) => {
+    console.log("wwwwwwwwwwwwwwww ", e.candidate);
     onIceCandidate(localConnection, e);
   };
   sendChannel.onopen = onSendChannelStateChange;
@@ -76,6 +77,7 @@ function createConnection() {
   console.log("Created remote peer connection object remoteConnection");
 
   remoteConnection.onicecandidate = (e) => {
+    console.log(" eeee ", e.candidate);
     onIceCandidate(remoteConnection, e);
   };
   remoteConnection.ondatachannel = receiveChannelCallback;

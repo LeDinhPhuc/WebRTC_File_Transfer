@@ -6,8 +6,11 @@ server.listen(5000);
 let peers = [];
 
 io.on("connection", (socket) => {
+  console.log(socket.id);
+
   socket.on("online", (data) => {
     const { newPeer } = data;
+    socket.join(socket.id);
     socket.to(socket.id).emit("online", { peers }); // emit event to new connection
     socket.broadcast.emit("newPeer", newPeer); // emit event to other connection
     peers.push(newPeer);
@@ -19,20 +22,27 @@ io.on("connection", (socket) => {
     socket.broadcast.emit("leave", { peerId });
     peers.splice(index, 1);
   });
+
   socket.on("offer", (data) => {
-    const { receiverId, desc, senderId } = data;
-    console.log("offer ", data);
-    // socket.broadcast.emit("offer", { desc, senderId });
-    socket.to(receiverId).emit("offer", { desc, senderId });
+    const { receiverId } = data;
+    socket.to(receiverId).emit("offer", data);
   });
+
   socket.on("answer", (data) => {
-    console.log("answer ", data);
-    const { senderId, desc } = data;
-    socket.to(senderId).emit("answer", { desc });
+    // console.log("answer ", data);
+    const { senderId } = data;
+    socket.to(senderId).emit("answer", data);
   });
+
   socket.on("candidate", (data) => {
-    const { receiverId, event, senderId } = data;
-    socket.to(receiverId).emit("candidate", { event, senderId });
+    console.log("candidate ", data);
+    const { receiverId } = data;
+    socket.to(receiverId).emit("candidate", data);
+  });
+
+  socket.on("candidate2", (data) => {
+    const { senderId } = data;
+    socket.to(senderId).emit("candidate2", data);
   });
 });
 
