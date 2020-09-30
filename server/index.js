@@ -19,6 +19,21 @@ io.on("connection", (socket) => {
     socket.broadcast.emit("leave", { peerId });
     peers.splice(index, 1);
   });
+  socket.on("offer", (data) => {
+    const { receiverId, desc, senderId } = data;
+    console.log("offer ", data);
+    // socket.broadcast.emit("offer", { desc, senderId });
+    socket.to(receiverId).emit("offer", { desc, senderId });
+  });
+  socket.on("answer", (data) => {
+    console.log("answer ", data);
+    const { senderId, desc } = data;
+    socket.to(senderId).emit("answer", { desc });
+  });
+  socket.on("candidate", (data) => {
+    const { receiverId, event, senderId } = data;
+    socket.to(receiverId).emit("candidate", { event, senderId });
+  });
 });
 
 // online
