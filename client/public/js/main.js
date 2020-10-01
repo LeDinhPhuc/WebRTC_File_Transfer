@@ -56,7 +56,9 @@ function sendData() {
 }
 
 function receiveChannelCallback(event) {
-  console.log("Receive Channel Callback");
+  console.log(
+    "Receive Channel Callback =>>>>!!!!!!!@@@@@@@@@@@@@>>>>>>>>>>>>>>"
+  );
   receiveChannel = event.channel;
   receiveChannel.onmessage = onReceiveMessageCallback;
   receiveChannel.onopen = onReceiveChannelStateChange;
@@ -102,7 +104,6 @@ if (document.readyState) {
 
   socket.on("online", (data) => {
     peers = data.peers;
-    // console.log({ peers });
   });
 
   socket.on("newPeer", (newPeer) => {
@@ -115,92 +116,76 @@ if (document.readyState) {
     peers = peers.filter((peer) => peer.peerId !== peerId);
     console.log({ peers });
   });
-  socket.on("candidate2", (data) => {
-    const { event, senderId, receiverId } = data;
-    peerConnection.addIceCandidate(event.candidate);
-    // sendChannel = peerConnection.createDataChannel("sendDataChannel");
-    // console.log("Created send data channel ", sendChannel);
-    // sendChannel.addEventListener("open", onSendChannelStateChange);
-    // sendChannel.addEventListener("close", onSendChannelStateChange);
-  });
-  peerConnection.addEventListener("icecandidate", (event) => {
-    console.log("event.candidate ", event.candidate);
-    if (!event.candidate) return;
-    socket.emit("candidate", {
-      candidate: event.candidate,
-      receiverId,
-      senderId,
-    });
-  });
-
-  socket.on("candidate", (data) => {
-    console.log("on candidate =>>>>>>>>>>>>>>>>>>>>  ", data);
-    const { candidate, senderId, receiverId } = data;
-    const candi = new RTCIceCandidate(candidate);
-    console.log("Candidate Obj: ", candi);
-    peerConnection
-      .addIceCandidate(candi)
-      .then(onAddIceCandidateSuccess, onAddIceCandidateError);
-
-    peerConnection.ondatachannel = receiveChannelCallback;
-  });
-
-  socket.on("answer", (data) => {
-    console.log("on answer =>>>>>>>>>>>>>>>>>>>>>>>>");
-    console.log("peerConnection ", peerConnection);
-    const { desc, receiverId, senderId } = data;
-    peerConnection.setRemoteDescription(desc);
-
-    // peerConnection.onicecandidate = (event) => {
-    //   console.log("event.candidate ", event.candidate);
-    //   socket.emit("candidate1", { event, receiverId, senderId });
-    // };
-  });
 
   socket.on("offer", async (data) => {
-    const { desc, senderId } = data;
+    console.log("offer =>>>>>>>>>>>>>>>>>>>>>>>> ");
+    const { desc } = data;
     peerConnection.setRemoteDescription(desc);
-    receiverId = data.receiverId;
-    console.log("offer =>>>>>>>>>>>>>>>>>>>>>>>>", peerConnection);
+    // client B nhận được gói tin offer sẽ xét id của người gửi đến cho nó thành người mà nó sẽ trả lời nhận
+    receiverId = data.senderId;
+
     try {
       const answer = await peerConnection.createAnswer();
       peerConnection.setLocalDescription(answer);
-      socket.emit("answer", { desc: answer, senderId, receiverId });
+      socket.emit("answer", { desc: answer, receiverId });
       console.log(`Answer from remoteConnection\n${answer.sdp}`);
     } catch (err) {
       onCreateSessionDescriptionError(err);
     }
   });
+
+  socket.on("answer", (data) => {
+    console.log("on answer =>>>>>>>>>>>>>>>>>>>>>>>>");
+    const { desc } = data;
+    peerConnection.setRemoteDescription(desc);
+  });
+
+  peerConnection.ondatachannel = receiveChannelCallback;
+
+  peerConnection.addEventListener("icecandidate", (event) => {
+    console.log("event.candidate ", event.candidate);
+    if (!event.candidate) return;
+    socket.emit("candidate", {
+      candidate: event.candidate.toJSON(),
+      receiverId,
+    });
+  });
+
+  socket.on("candidate", (data) => {
+    const { candidate } = data;
+    console.log("On candidate =>>>>>>>>>>>>>>>>>>>>  ", candidate);
+    peerConnection
+      .addIceCandidate(new RTCIceCandidate(candidate))
+      .then(onAddIceCandidateSuccess, onAddIceCandidateError);
+  });
 }
 
 async function createConnection(otherPeer) {
-  dataChannelSend.placeholder = "";
+  if (!otherPeer) return;
   console.log("Created local peer connection object peerConnection");
-  const { peerId } = otherPeer || {};
+  const { peerId } = otherPeer;
   receiverId = peerId;
   senderId = peer.peerId;
-  console.log("peers", peers);
+
+  dataChannelSend.placeholder = "";
 
   sendChannel = peerConnection.createDataChannel("sendDataChannel");
   console.log("Created send data channel ", sendChannel);
-  sendChannel.addEventListener("open", onSendChannelStateChange);
-  sendChannel.addEventListener("close", onSendChannelStateChange);
+
+  sendChannel.onopen = onSendChannelStateChange;
+  sendChannel.onclose = onSendChannelStateChange;
 
   try {
     const offer = await peerConnection.createOffer();
     peerConnection.setLocalDescription(offer);
 
-    // socket.emit("offer", { receiverId, desc: offer, senderId });
+    socket.emit("offer", { receiverId, desc: offer, senderId });
     console.log(`Offer from peerConnection\n${offer.sdp}`);
   } catch (err) {
     onCreateSessionDescriptionError(err);
   }
 
-  // sendChannel.onopen = onSendChannelStateChange;
-  // sendChannel.onclose = onSendChannelStateChange;
-
   startButton.disabled = true;
-  sendButton.disabled = false;
   closeButton.disabled = false;
 }
 

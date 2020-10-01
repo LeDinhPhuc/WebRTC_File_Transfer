@@ -29,20 +29,14 @@ io.on("connection", (socket) => {
   });
 
   socket.on("answer", (data) => {
-    // console.log("answer ", data);
-    const { senderId } = data;
-    socket.to(senderId).emit("answer", data);
+    const { receiverId } = data;
+    socket.to(receiverId).emit("answer", data);
   });
 
   socket.on("candidate", (data) => {
     console.log("candidate ", data);
     const { receiverId } = data;
     socket.to(receiverId).emit("candidate", data);
-  });
-
-  socket.on("candidate2", (data) => {
-    const { senderId } = data;
-    socket.to(senderId).emit("candidate2", data);
   });
 });
 
