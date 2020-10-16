@@ -166,7 +166,6 @@ async function createConnection(otherPeer) {
   const { peerId } = otherPeer;
   receiverId = peerId;
   senderId = peer.peerId;
-
   dataChannelSend.placeholder = "";
 
   sendChannel = peerConnection.createDataChannel("sendDataChannel");
