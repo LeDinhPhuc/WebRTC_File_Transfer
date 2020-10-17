@@ -1,43 +1,88 @@
-const server = require("http").createServer();
-const options = { transports: ["websocket"] };
-const io = require("socket.io")(server, options);
-server.listen(5000);
+const WebSocket = require("ws");
+const { v4: uuidv4 } = require("uuid");
+const wss = new WebSocket.Server({
+  port: 5000,
+});
 
 let peers = [];
 
-io.on("connection", (socket) => {
-  console.log(socket.id);
-
-  socket.on("online", (data) => {
-    const { newPeer } = data;
-    socket.join(socket.id);
-    socket.to(socket.id).emit("online", { peers }); // emit event to new connection
-    socket.broadcast.emit("newPeer", newPeer); // emit event to other connection
-    peers.push(newPeer);
+wss.on("connection", function connection(ws, req) {
+  ws.on("message", (evt) => {
+    const { type, data } = JSON.parse(evt);
+    switch (type) {
+      case "online":
+        handleOnline(data);
+        break;
+      case "offer":
+        handleOffer(data);
+        break;
+      case "answer":
+        handleAnswer(data);
+        break;
+      case "candidate":
+        handleCandidate(data);
+        break;
+      case "leave":
+        handleLeave(data);
+        break;
+      default:
+        console.log("Not support event ", type);
+    }
   });
+  const handleOnline = (data) => {
+    // console.log("online");
+    const peerId = uuidv4();
+    const { peer } = data;
+    ws.send(JSON.stringify({ type: "online", data: { peerId, peers } }));
+    const newPeer = { peerId, ...peer };
+    peers.forEach((peer) => {
+      peer.connection.send(
+        JSON.stringify({ type: "newPeer", data: { newPeer } })
+      );
+    });
+    peers.push({ ...newPeer, connection: ws });
+  };
+  const handleOffer = (data) => {
+    // console.log("offer:");
+    const { receiverId, senderId, desc } = data;
+    const receiver = peers.find((peer) => peer.peerId === receiverId);
+    if (receiver) {
+      const offerMessage = { type: "offer", data: { senderId, desc } };
+      receiver.connection.send(JSON.stringify(offerMessage));
+    } else {
+      // console.log("Not found ", receiverId);
+    }
+  };
+  const handleAnswer = (data) => {
+    // console.log("answer:");
+    const { receiverId } = data;
+    const receiver = peers.find((peer) => peer.peerId === receiverId);
+    if (receiver) {
+      const answerMessage = { type: "answer", data };
+      receiver.connection.send(JSON.stringify(answerMessage));
+    } else {
+      console.log("Answer event  not found ", receiverId);
+    }
+  };
+  const handleCandidate = (data) => {
+    // console.log("candidate: ");
+    const receiver = peers.find((peer) => peer.peerId === data.receiverId);
+    if (receiver) {
+      const candidateMessage = { type: "candidate", data };
+      receiver.connection.send(JSON.stringify(candidateMessage));
+    } else {
+      console.log("Candidate event not found ", receiverId);
+    }
+  };
 
-  socket.on("disconnect", (reason) => {
-    const index = peers.findIndex((peer) => peer.socketId === socket.id);
+  ws.onclose = (reason) => {
+    const index = peers.findIndex((peer) => peer.connection === ws);
     const { peerId } = peers[index];
-    socket.broadcast.emit("leave", { peerId });
     peers.splice(index, 1);
-  });
-
-  socket.on("offer", (data) => {
-    const { receiverId } = data;
-    socket.to(receiverId).emit("offer", data);
-  });
-
-  socket.on("answer", (data) => {
-    const { receiverId } = data;
-    socket.to(receiverId).emit("answer", data);
-  });
-
-  socket.on("candidate", (data) => {
-    console.log("candidate ", data);
-    const { receiverId } = data;
-    socket.to(receiverId).emit("candidate", data);
-  });
+    peers.forEach((peer) => {
+      peer.connection.send(JSON.stringify({ type: "leave", data: { peerId } }));
+    });
+  };
 });
 
 // online
