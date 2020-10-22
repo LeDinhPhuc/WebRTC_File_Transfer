@@ -1,4 +1,5 @@
 "use strict";
+import Peer from "./Peer";
 const SIGNAL_SERVER = "ws://localhost:5000";
 const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
 const url = window.location.href;
@@ -11,6 +12,7 @@ let receiverId = "";
 let senderId = "";
 
 let peerConnection;
+let remoteConnection;
 let sendChannel;
 let receiveChannel;
 
@@ -100,7 +102,7 @@ if (document.readyState) {
       JSON.stringify({
         type: "candidate",
         data: {
-          candidate: event.candidate,
+          candidate: event.candidate.toJSON(),
           receiverId,
         },
       })
@@ -109,11 +111,11 @@ if (document.readyState) {
 
   ws.onopen = function (evt) {
     peer = { name: "Hello", url };
-    const onlineMessage = {
+    const message = {
       type: "online",
       data: { peer },
     };
-    ws.send(JSON.stringify(onlineMessage));
+    ws.send(JSON.stringify(message));
   };
 
   ws.onmessage = (evt) => {
@@ -163,12 +165,12 @@ const handleNewPeer = (data) => {
 };
 const handleOffer = async (data) => {
   console.log("offer =>>>>>>>>>>>>>>>>>>>>>>>> ");
-  await peerConnection.setRemoteDescription(data.desc);
+  peerConnection.setRemoteDescription(data.desc);
   // client B nhận được gói tin offer sẽ xét id của người gửi đến cho nó thành người mà nó sẽ trả lời nhận
   receiverId = data.senderId;
   try {
     const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
+    peerConnection.setLocalDescription(answer);
 
     const answerMessage = {
       type: "answer",
@@ -180,10 +182,10 @@ const handleOffer = async (data) => {
     onCreateSessionDescriptionError(err);
   }
 };
-const handleAnswer = async (data) => {
+const handleAnswer = (data) => {
   console.log("On answer =>>>>>>>>>>>>>>>>>>>>>>>>");
   const { desc } = data;
-  await peerConnection.setRemoteDescription(desc);
+  peerConnection.setRemoteDescription(desc);
 };
 const handleCandidate = (data) => {
   const { candidate } = data;
