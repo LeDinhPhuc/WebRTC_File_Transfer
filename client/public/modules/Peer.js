@@ -1,4 +1,4 @@
-export default class Peer {
+class Peer {
   peerId = undefined;
   connections = {};
   peerConnection = undefined;
