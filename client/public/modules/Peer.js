@@ -1,17 +1,22 @@
 class Peer {
-  peerId = undefined;
-  connections = {};
-  peerConnection = undefined;
-
-  constructor(peerId) {
-    this.peerId = peerId;
+  constructor(myId) {
+    this.myId = myId;
+    this.peerConnection = undefined;
+    this.remoteConnection = [];
+    this.localConnection = [];
   }
 
   createConnection = () => {
-    const peerConnection = new RTCPeerConnection();
+
   };
 
-  addConnection = ({ peerId, connection }) => {};
+  addRemoteConnection = ({ peerId, data }) => {
+        
+  };
+  addLocalConnection = ({peerId, data}) => {
+
+  }
+
   removeConnection = (peerId) => {};
   lookup = (dataName) => {};
   sendData = ({ receiverId, data }) => {};
@@ -20,3 +25,5 @@ class Peer {
     this.pc = [];
   };
 }
+
+window.Peer = Peer;

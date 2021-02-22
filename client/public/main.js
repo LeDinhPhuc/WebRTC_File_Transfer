@@ -5,6 +5,10 @@ const SIGNAL_SERVER = "ws://localhost:5000";
 const url = window.location.href;
 const options = { transports: ["websocket"] }; // lb
 // If you are sure the WebSocket connection will succeed, you can disable the polling transport:
+// const Peer = window.Peer;
+// const peerObject = new Peer();
+// console.log({ peerObject });
+
 const ws = new WebSocket(SIGNAL_SERVER);
 let peers = [];
 let peer = null;
@@ -102,7 +106,7 @@ function receiveChannelCallback(event) {
 
 function onReceiveMessageCallback(event) {
   console.log("\nReceived Message");
-  console.log({ event });
+
   const { data } = event;
   if (typeof data === "string") {
     fileDescription = JSON.parse(data).fileDescription;
@@ -112,7 +116,7 @@ function onReceiveMessageCallback(event) {
   receiveBuffer.push(data);
   receivedSize += data.byteLength;
 
-  console.log({ receivedSize });
+  console.log("receivedSize ", receivedSize);
   if (receivedSize === fileDescription.size) {
     clearInterval(statsInterval);
     const received = new Blob(receiveBuffer);
