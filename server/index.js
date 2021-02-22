@@ -6,7 +6,7 @@ const wss = new WebSocket.Server({
 
 let peers = [];
 
-wss.on('connection', function connection(ws, req) {
+wss.on('connection', (ws, req) => {
   ws.on('message', (evt) => {
     const { type, data } = JSON.parse(evt);
     switch (type) {
@@ -30,46 +30,37 @@ wss.on('connection', function connection(ws, req) {
     }
   });
   const handleOnline = (data) => {
-    // console.log("online");
     const peerId = uuidv4();
     const { peer } = data;
-    ws.send(JSON.stringify({ type: 'online', data: { peerId, peers } }));
+    sendMessage(ws, 'online', { peerId, peers });
     const newPeer = { peerId, ...peer };
     peers.forEach((peer) => {
-      peer.connection.send(
-        JSON.stringify({ type: 'newPeer', data: { newPeer } })
-      );
+      sendMessage(peer.connection, 'newPeer', { newPeer });
     });
     peers.push({ ...newPeer, connection: ws });
   };
   const handleOffer = (data) => {
-    // console.log("offer:");
     const { receiverId, senderId, desc } = data;
     const receiver = peers.find((peer) => peer.peerId === receiverId);
     if (receiver) {
-      const offerMessage = { type: 'offer', data: { senderId, desc } };
-      receiver.connection.send(JSON.stringify(offerMessage));
+      sendMessage(receiver.connection, 'offer', { senderId, desc });
     } else {
-      // console.log("Not found ", receiverId);
+      console.log('Not found ', receiverId);
     }
   };
   const handleAnswer = (data) => {
-    // console.log("answer:");
     const { receiverId } = data;
     const receiver = peers.find((peer) => peer.peerId === receiverId);
     if (receiver) {
-      const answerMessage = { type: 'answer', data };
-      receiver.connection.send(JSON.stringify(answerMessage));
+      sendMessage(receiver.connection, 'answer', data);
     } else {
       console.log('Answer event  not found ', receiverId);
     }
   };
   const handleCandidate = (data) => {
-    // console.log("candidate: ");
     const receiver = peers.find((peer) => peer.peerId === data.receiverId);
     if (receiver) {
-      const candidateMessage = { type: 'candidate', data };
-      receiver.connection.send(JSON.stringify(candidateMessage));
+      sendMessage(receiver.connection, 'candidate', data);
     } else {
       console.log('Candidate event not found ', receiverId);
     }
@@ -80,10 +71,15 @@ wss.on('connection', function connection(ws, req) {
     const { peerId } = peers[index];
     peers.splice(index, 1);
     peers.forEach((peer) => {
-      peer.connection.send(JSON.stringify({ type: 'leave', data: { peerId } }));
+      sendMessage(peer.connection, 'leave', { peerId });
     });
   };
 });
+
+const sendMessage = (client, type, data) => {
+  if (!client) return;
+  client.send(JSON.stringify({ type, data }));
+};
 
 // online
 // login

@@ -1,21 +1,17 @@
-"use strict";
+'use strict';
 
-const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
-const SIGNAL_SERVER = "ws://localhost:5000";
+const SIGNAL_SERVER = 'ws://localhost:5000';
 const url = window.location.href;
-const options = { transports: ["websocket"] }; // lb
-// If you are sure the WebSocket connection will succeed, you can disable the polling transport:
-// const Peer = window.Peer;
-// const peerObject = new Peer();
-// console.log({ peerObject });
 
 const ws = new WebSocket(SIGNAL_SERVER);
 let peers = [];
 let peer = null;
-let receiverId = "";
-let senderId = "";
+let receiverId = '';
+let senderId = '';
 let peerConnection;
 let sendChannel;
+let allowedSendData = false;
+
 let receiveChannel;
 let receiveBuffer = [];
 let receivedSize = 0;
@@ -25,79 +21,84 @@ let fileDescription;
 let bytesPrev = 0;
 let timestampStart;
 let timestampPrev;
-let statsInterval = null;
 let bitrateMax = 0;
+const chunkSize = 16384;
 
-const fileInput = document.querySelector("input#fileInput");
-fileInput.addEventListener("change", handleFileInputChange, false);
+const fileInput = document.querySelector('input#fileInput');
+fileInput.addEventListener('change', handleFileInputChange, false);
+fileInput.disabled = true;
 
-const downloadAnchor = document.querySelector("a#download");
+const downloadAnchor = document.querySelector('a#download');
 
-const startButton = document.querySelector("button#startButton");
-startButton.disabled = true;
-startButton.addEventListener("click", () => {
+const startButton = document.querySelector('button#startButton');
+startButton.addEventListener('click', () => {
   createConnection(peers[0]);
+  fileInput.disabled = false;
 });
 
-const closeButton = document.querySelector("button#closeButton");
+const sendButton = document.querySelector('button#sendButton');
+sendButton.disabled = true;
+sendButton.addEventListener('click', () => {
+  sendData();
+});
+
+const closeButton = document.querySelector('button#closeButton');
 closeButton.disabled = true;
 closeButton.onclick = closeDataChannels;
 
-async function handleFileInputChange() {
-  const file = fileInput.files[0];
+function handleFileInputChange() {
+  const file = this.files[0];
   if (!file) {
-    console.log("No file chosen");
+    console.log('No file chosen');
   } else {
-    startButton.disabled = false;
+    sendButton.disabled = false;
   }
 }
 
 function sendData() {
+  downloadAnchor.textContent = '';
   const file = fileInput.files[0];
-  downloadAnchor.textContent = "";
   const { size, name, type, lastModified } = file;
 
-  console.log(`File is ${[name, size, type, lastModified].join(" ")}`);
-  // Handle 0 size files.
+  console.log(`File is ${[name, size, type, lastModified].join(' ')}`);
   if (size === 0) {
-    console.log("File is empty, please select a non-empty file");
-    closeDataChannels();
+    console.log('File is empty, please select a non-empty file');
     return;
   }
 
   const fileDescription = { size, name, type, lastModified };
   sendChannel.send(JSON.stringify({ fileDescription }));
 
-  const chunkSize = 16384;
   fileReader = new FileReader();
   let offset = 0;
-  fileReader.addEventListener("error", (error) =>
-    console.error("Error reading file:", error)
+  fileReader.addEventListener('error', (error) =>
+    console.error('Error reading file:', error)
   );
-  fileReader.addEventListener("abort", (event) =>
-    console.log("File reading aborted:", event)
+  fileReader.addEventListener('abort', (event) =>
+    console.log('File reading aborted:', event)
   );
-  fileReader.addEventListener("load", (e) => {
-    console.log("FileRead.onload ", e);
-    const { result } = e.target;
+  fileReader.addEventListener('load', (event) => {
+    console.log('FileRead.onload ', event);
+    const { result } = event.target;
     sendChannel.send(result);
     offset += result.byteLength;
-    console.log("sendProgress %0.2f %", (offset / size) * 100);
+    console.log('SendProgress ', ((offset / size) * 100).toFixed(2) + '%');
     if (offset < size) {
       readSlice(offset);
     }
   });
 
   const readSlice = (o) => {
-    console.log("readSlice ", o);
+    console.log('readSlice ', o);
     const slice = file.slice(offset, o + chunkSize);
     fileReader.readAsArrayBuffer(slice);
   };
   readSlice(0);
+  sendButton.disabled = true;
 }
 
 function receiveChannelCallback(event) {
-  console.log("\nReceive Channel Callback: ");
+  console.log('\nReceive Channel Callback: ');
   receiveChannel = event.channel;
   receiveChannel.onmessage = onReceiveMessageCallback;
   receiveChannel.onopen = onReceiveChannelStateChange;
@@ -105,10 +106,10 @@ function receiveChannelCallback(event) {
 }
 
 function onReceiveMessageCallback(event) {
-  console.log("\nReceived Message");
+  console.log('\nReceived Message');
 
   const { data } = event;
-  if (typeof data === "string") {
+  if (typeof data === 'string') {
     fileDescription = JSON.parse(data).fileDescription;
     return;
   }
@@ -116,16 +117,15 @@ function onReceiveMessageCallback(event) {
   receiveBuffer.push(data);
   receivedSize += data.byteLength;
 
-  console.log("receivedSize ", receivedSize);
+  console.log('receivedSize ', receivedSize);
   if (receivedSize === fileDescription.size) {
-    clearInterval(statsInterval);
     const received = new Blob(receiveBuffer);
     receiveBuffer = [];
 
     downloadAnchor.href = URL.createObjectURL(received);
     downloadAnchor.download = fileDescription.name;
     downloadAnchor.textContent = `Click to download '${fileDescription.name}' (${fileDescription.size} bytes)`;
-    downloadAnchor.style.display = "block";
+    downloadAnchor.style.display = 'block';
 
     const bitrate = Math.round(
       (receivedSize * 8) / (new Date().getTime() - timestampStart)
@@ -133,20 +133,15 @@ function onReceiveMessageCallback(event) {
     console.log(
       `Average Bitrate: ${bitrate} kbits/sec (max: ${bitrateMax} kbits/sec)`
     );
-    closeDataChannels();
   }
 }
 
-function enableStartButton() {
-  startButton.disabled = false;
-}
-
 function onCreateSessionDescriptionError(error) {
-  console.log("Failed to create session description: " + error.toString());
+  console.log('Failed to create session description: ' + error.toString());
 }
 
 function onAddIceCandidateSuccess() {
-  console.log("AddIceCandidate success.");
+  console.log('AddIceCandidate success.');
 }
 
 function onAddIceCandidateError(error) {
@@ -155,19 +150,22 @@ function onAddIceCandidateError(error) {
 
 function onSendChannelStateChange() {
   const readyState = sendChannel.readyState;
-  console.log("Send channel state is: " + readyState);
-  if (readyState === "open") {
-    sendData(); // FILE TRANSFER
+  console.log('Send channel state is: ' + readyState);
+  if (readyState === 'open') {
+    allowedSendData = true;
+  } else if (readyState === 'closed') {
+    allowedSendData = true;
   }
 }
+
 async function displayStats() {
-  console.log("111111111111");
-  if (peerConnection && peerConnection.iceConnectionState === "connected") {
+  console.log('111111111111');
+  if (peerConnection && peerConnection.iceConnectionState === 'connected') {
     const stats = await peerConnection.getStats();
-    console.log("22222222222 ", stats);
+    console.log('22222222222 ', stats);
     let activeCandidatePair;
     stats.forEach((report) => {
-      if (report.type === "transport") {
+      if (report.type === 'transport') {
         activeCandidatePair = stats.get(report.selectedCandidatePairId);
       }
     });
@@ -184,7 +182,7 @@ async function displayStats() {
       console.log(`<strong>Current Bitrate:</strong> ${bitrate} kbits/sec`);
       timestampPrev = activeCandidatePair.timestamp;
       bytesPrev = bytesNow;
-      console.log("bitrate ", bitrate);
+      console.log('bitrate ', bitrate);
       if (bitrate > bitrateMax) {
         bitrateMax = bitrate;
       }
@@ -195,61 +193,55 @@ async function displayStats() {
 async function onReceiveChannelStateChange() {
   const readyState = receiveChannel.readyState;
   console.log(`Receive channel state is: ${readyState}`);
-  if (readyState === "open") {
+  if (readyState === 'open') {
     timestampStart = new Date().getTime();
     timestampPrev = timestampStart;
-    statsInterval = setInterval(displayStats, 500);
     await displayStats();
   }
 }
 
-// js ready
+function sendMessage(type, data) {
+  if (!ws || !ws.send) return;
+  ws.send(JSON.stringify({ type, data }));
+}
+
 if (document.readyState) {
   peerConnection = new RTCPeerConnection();
   peerConnection.ondatachannel = receiveChannelCallback;
-  peerConnection.addEventListener("icecandidate", (event) => {
-    console.log("event.candidate ", event.candidate);
+  peerConnection.addEventListener('icecandidate', (event) => {
+    console.log('event.candidate ', event.candidate);
     if (!event.candidate) return;
-    ws.send(
-      JSON.stringify({
-        type: "candidate",
-        data: {
-          candidate: event.candidate,
-          receiverId,
-        },
-      })
-    );
+    sendMessage('candidate', {
+      candidate: event.candidate,
+      receiverId,
+    });
   });
 
   ws.onopen = function (evt) {
-    peer = { name: "Hello", url };
-    const onlineMessage = {
-      type: "online",
-      data: { peer },
-    };
-    ws.send(JSON.stringify(onlineMessage));
+    peer = { name: 'Hello', url };
+    sendMessage('online', { peer });
   };
 
-  ws.onmessage = (evt) => {
+  ws.onmessage = function (evt) {
     const { type, data } = JSON.parse(evt.data);
     switch (type) {
-      case "online":
+      case 'online':
         handleOnline(data);
         break;
-      case "newPeer":
+      case 'newPeer':
         handleNewPeer(data);
         console.log({ peers });
         break;
-      case "offer":
+      case 'offer':
         handleOffer(data);
         break;
-      case "answer":
+      case 'answer':
         handleAnswer(data);
         break;
-      case "candidate":
+      case 'candidate':
         handleCandidate(data);
         break;
-      case "leave":
+      case 'leave':
         handleLeave(data);
         break;
       default:
@@ -257,111 +249,98 @@ if (document.readyState) {
     }
   };
 
-  ws.onclose = function (evt) {
-    const leaveMessage = { type: "leave", data: { peerId: peer.peerId } };
-    ws.send(JSON.stringify(leaveMessage));
-    ws.send("Leave Phuc");
+  ws.onclose = function (reason) {
+    sendMessage('leave', { peerId: peer.peerId });
   };
 
-  ws.onerror = (reason) => {
-    console.log("WS is error: Reason ", reason);
+  ws.onerror = function (reason) {
+    console.log('WS is error: Reason ', reason);
   };
 }
+
 // Handle event listener
-const handleOnline = (data) => {
+function handleOnline(data) {
   peers = data.peers;
   peer.peerId = data.peerId;
-};
-const handleNewPeer = (data) => {
+}
+
+function handleNewPeer(data) {
   peers.push(data.newPeer);
-};
-const handleOffer = async (data) => {
-  console.log("offer =>>>>>>>>>>>>>>>>>>>>>>>> ");
+}
+
+async function handleOffer(data) {
+  console.log('offer =>>>>>>>>>>>>>>>>>>>>>>>> ');
   await peerConnection.setRemoteDescription(data.desc);
   // client B nhận được gói tin offer sẽ xét id của người gửi đến cho nó thành người mà nó sẽ trả lời nhận
   receiverId = data.senderId;
   try {
     const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-
-    const answerMessage = {
-      type: "answer",
-      data: { desc: answer, receiverId },
-    };
-    ws.send(JSON.stringify(answerMessage));
     console.log(`Answer from remoteConnection\n${answer.sdp}`);
+    await peerConnection.setLocalDescription(answer);
+    sendMessage('answer', { desc: answer, receiverId });
   } catch (err) {
     onCreateSessionDescriptionError(err);
   }
-};
-const handleAnswer = async (data) => {
-  console.log("On answer =>>>>>>>>>>>>>>>>>>>>>>>>");
+}
+
+async function handleAnswer(data) {
+  console.log('On answer =>>>>>>>>>>>>>>>>>>>>>>>>');
+
   const { desc } = data;
   await peerConnection.setRemoteDescription(desc);
-};
-const handleCandidate = (data) => {
+}
+
+function handleCandidate(data) {
   const { candidate } = data;
-  console.log("On candidate =>>>>>>>>>>>>>>>>>>>>  ", candidate);
+  console.log('On candidate =>>>>>>>>>>>>>>>>>>>>  ', candidate);
   peerConnection
     .addIceCandidate(new RTCIceCandidate(candidate))
     .then(onAddIceCandidateSuccess, onAddIceCandidateError);
-};
-const handleLeave = (data) => {
+}
+
+function handleLeave(data) {
   const { peerId } = data;
   peers = peers.filter((peer) => peer.peerId !== peerId);
-};
+}
 
-const createConnection = async (otherPeer) => {
+async function createConnection(otherPeer) {
   if (!otherPeer) return;
   closeButton.disabled = false;
-  console.log("Created local peer connection object peerConnection");
+  console.log('Created local peer connection object peerConnection');
   receiverId = otherPeer.peerId;
   senderId = peer.peerId;
 
-  sendChannel = peerConnection.createDataChannel("sendDataChannel"); // label
-  console.log("Created send data channel ", sendChannel);
+  sendChannel = peerConnection.createDataChannel('sendDataChannel');
+  console.log('Created send data channel ', sendChannel);
 
   sendChannel.onopen = onSendChannelStateChange;
   sendChannel.onclose = onSendChannelStateChange;
-  sendChannel.addEventListener("error", (error) =>
-    console.error("Error in sendChannel:", error)
+  sendChannel.addEventListener('error', (error) =>
+    console.error('Error in sendChannel:', error)
   );
 
   try {
     const offer = await peerConnection.createOffer();
-    peerConnection.setLocalDescription(offer);
     console.log(`Offer from peerConnection\n${offer.sdp}`);
-
-    const offerMessage = {
-      type: "offer",
-      data: { receiverId, desc: offer, senderId },
-    };
-    ws.send(JSON.stringify(offerMessage));
+    peerConnection.setLocalDescription(offer);
+    sendMessage('offer', { receiverId, desc: offer, senderId });
   } catch (err) {
     onCreateSessionDescriptionError(err);
   }
 
-  startButton.disabled = true;
   closeButton.disabled = false;
-};
+}
 
 function closeDataChannels() {
-  console.log("Closing data channels");
+  console.log('Closing data channels');
   if (sendChannel) {
+    console.log('Closed data channel with label: ' + sendChannel.label);
     sendChannel.close();
-    console.log("Closed data channel with label: " + sendChannel.label);
   }
   if (receiveChannel) {
+    console.log('Closed data channel with label: ' + receiveChannel.label);
     receiveChannel.close();
-    console.log("Closed data channel with label: " + receiveChannel.label);
   }
 
-  peerConnection.close();
-  peerConnection = null;
-  console.log("Closed peer connections");
-
-  startButton.disabled = false;
   closeButton.disabled = true;
-
-  enableStartButton();
 }
