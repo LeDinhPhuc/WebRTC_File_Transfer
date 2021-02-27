@@ -1,4 +1,7 @@
 'use strict';
+import '../css/styles.css';
+import { serialize, deserialize } from './bson';
+console.log('serialize ', serialize);
 
 const SIGNAL_SERVER = 'ws://localhost:5000';
 const url = window.location.href;
@@ -51,7 +54,7 @@ function handleFileInputChange() {
   if (!file) {
     console.log('No file chosen');
   } else {
-    sendButton.disabled = false;
+    sendButton.disabled = !allowedSendData;
   }
 }
 
@@ -72,10 +75,10 @@ function sendData() {
   fileReader = new FileReader();
   let offset = 0;
   fileReader.addEventListener('error', (error) =>
-    console.error('Error reading file:', error)
+    console.error('Error reading file:', error),
   );
   fileReader.addEventListener('abort', (event) =>
-    console.log('File reading aborted:', event)
+    console.log('File reading aborted:', event),
   );
   fileReader.addEventListener('load', (event) => {
     console.log('FileRead.onload ', event);
@@ -128,10 +131,10 @@ function onReceiveMessageCallback(event) {
     downloadAnchor.style.display = 'block';
 
     const bitrate = Math.round(
-      (receivedSize * 8) / (new Date().getTime() - timestampStart)
+      (receivedSize * 8) / (new Date().getTime() - timestampStart),
     );
     console.log(
-      `Average Bitrate: ${bitrate} kbits/sec (max: ${bitrateMax} kbits/sec)`
+      `Average Bitrate: ${bitrate} kbits/sec (max: ${bitrateMax} kbits/sec)`,
     );
   }
 }
@@ -154,7 +157,7 @@ function onSendChannelStateChange() {
   if (readyState === 'open') {
     allowedSendData = true;
   } else if (readyState === 'closed') {
-    allowedSendData = true;
+    allowedSendData = false;
   }
 }
 
@@ -177,7 +180,7 @@ async function displayStats() {
       const bytesNow = activeCandidatePair.bytesReceived;
       const bitrate = Math.round(
         ((bytesNow - bytesPrev) * 8) /
-          (activeCandidatePair.timestamp - timestampPrev)
+          (activeCandidatePair.timestamp - timestampPrev),
       );
       console.log(`<strong>Current Bitrate:</strong> ${bitrate} kbits/sec`);
       timestampPrev = activeCandidatePair.timestamp;
@@ -230,7 +233,6 @@ if (document.readyState) {
         break;
       case 'newPeer':
         handleNewPeer(data);
-        console.log({ peers });
         break;
       case 'offer':
         handleOffer(data);
@@ -316,7 +318,7 @@ async function createConnection(otherPeer) {
   sendChannel.onopen = onSendChannelStateChange;
   sendChannel.onclose = onSendChannelStateChange;
   sendChannel.addEventListener('error', (error) =>
-    console.error('Error in sendChannel:', error)
+    console.error('Error in sendChannel:', error),
   );
 
   try {

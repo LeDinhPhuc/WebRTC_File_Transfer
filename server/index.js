@@ -11,24 +11,21 @@ wss.on('connection', (ws, req) => {
     const { type, data } = JSON.parse(evt);
     switch (type) {
       case 'online':
-        handleOnline(data);
-        break;
+        return handleOnline(data);
       case 'offer':
-        handleOffer(data);
-        break;
+        return handleOffer(data);
       case 'answer':
-        handleAnswer(data);
-        break;
+        return handleAnswer(data);
       case 'candidate':
-        handleCandidate(data);
-        break;
+        return handleCandidate(data);
       case 'leave':
-        handleLeave(data);
-        break;
+        return handleLeave(data);
       default:
         console.log('Not support event ', type);
+        break;
     }
   });
+
   const handleOnline = (data) => {
     const peerId = uuidv4();
     const { peer } = data;
@@ -68,6 +65,8 @@ wss.on('connection', (ws, req) => {
 
   ws.onclose = (reason) => {
     const index = peers.findIndex((peer) => peer.connection === ws);
+    if (index === -1) return;
+
     const { peerId } = peers[index];
     peers.splice(index, 1);
     peers.forEach((peer) => {
