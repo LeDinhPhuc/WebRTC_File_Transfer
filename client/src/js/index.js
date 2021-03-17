@@ -1,7 +1,5 @@
-'use strict';
 import '../css/styles.css';
-import { serialize, deserialize } from './bson';
-console.log('serialize ', serialize);
+import bson from './parser';
 
 const SIGNAL_SERVER = 'ws://localhost:5000';
 const url = window.location.href;
