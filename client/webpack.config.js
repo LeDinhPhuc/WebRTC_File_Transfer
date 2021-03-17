@@ -11,7 +11,6 @@ const devMode = true;
 module.exports = {
   mode: devMode ? 'development' : 'production',
   entry: './client/src/js/index.js',
-  name: 'spilot',
   plugins: [
     new CleanWebpackPlugin(),
     new MiniCssExtractPlugin({
