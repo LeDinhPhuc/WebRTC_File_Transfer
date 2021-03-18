@@ -1,6 +1,6 @@
 import convertData from './convertData';
-import { CONTENT_TYPES, CODES } from '../constant';
-import { DATA_SIZES } from '../config';
+import { CONTENT_TYPES, CODES } from './constant';
+import { DATA_SIZES } from './config';
 
 function serialize(code, contentType, contentData, peerId) {
   const codeBuf = new Uint8Array(DATA_SIZES.code);
@@ -72,12 +72,12 @@ function deserialize(buffer) {
     case CODES.grant:
     case CODES.addResource:
     case CODES.removeResource:
-      const data = convertData.buf2JSON(contentDataBuf);
-      return { peerId, data };
+      const data1 = convertData.buf2JSON(contentDataBuf);
+      return { peerId, data1 };
     case CODES.ping:
     case CODES.pong:
-      const data = convertData.buf2Str(contentDataBuf);
-      return { code, peerId, data };
+      const data2 = convertData.buf2Str(contentDataBuf);
+      return { code, peerId, data2 };
     case CODES.transfer:
       let offset = 0;
       const resourceIdBuf = contentDataBuf.slice(offset, DATA_SIZES.resourceId);

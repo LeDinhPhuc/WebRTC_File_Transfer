@@ -8,4 +8,6 @@ const DATA_SIZES = {
   finishIndex: 4,
 };
 
-export { DATA_SIZES };
+const SIGNAL_SERVER = 'ws://localhost:5000';
+
+export { SIGNAL_SERVER, DATA_SIZES };

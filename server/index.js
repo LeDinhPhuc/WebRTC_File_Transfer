@@ -8,6 +8,7 @@ let peers = [];
 
 wss.on('connection', (ws, req) => {
   ws.on('message', (evt) => {
+    console.log('evt ', evt);
     const { type, data } = JSON.parse(evt);
     switch (type) {
       case 'online':
@@ -27,10 +28,11 @@ wss.on('connection', (ws, req) => {
   });
 
   const handleOnline = (data) => {
+    console.log('data ', data);
     const peerId = uuidv4();
-    const { peer } = data;
+    const { desc } = data;
     sendMessage(ws, 'online', { peerId, peers });
-    const newPeer = { peerId, ...peer };
+    const newPeer = { peerId, ...desc };
     peers.forEach((peer) => {
       sendMessage(peer.connection, 'newPeer', { newPeer });
     });

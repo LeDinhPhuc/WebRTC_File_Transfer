@@ -1,27 +1,29 @@
-const { request } = require("express");
-
-class Peer(){
-  constructor(peerId){
+class Peer {
+  constructor(peerId) {
     this.peerId = peerId;
   }
-  
-  init(){
-    this.PEERS = [];
+
+  init() {
+    this.peerConns = {};
+    this.dataChannels = {};
+    this.peers = {};
     this.resourceMap = {};
     this.myResource = {};
   }
 
-  request(resourceId){
-
+  setPeerConns(peerConns) {
+    this.peerConns = peerConns;
   }
 
-  grant(peerId, description){
-
+  getDescription() {
+    return { name: 'Peer' };
   }
 
-  transfer(resourceId, data){
+  request(resourceId) {}
 
-  }
+  grant(peerId, description) {}
 
-  updateResource(resourceId, )
+  transfer(resourceId, data) {}
+
+  updateResource(resourceId) {}
 }
