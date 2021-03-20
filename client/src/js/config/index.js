@@ -10,4 +10,10 @@ const DATA_SIZES = {
 
 const SIGNAL_SERVER = 'ws://localhost:5000';
 
-export { SIGNAL_SERVER, DATA_SIZES };
+const PEER_CONN_CONFIG = {
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+};
+
+const DATA_CHANNEL_LABEL = 'sendDataChannel';
+
+export { SIGNAL_SERVER, DATA_SIZES, PEER_CONN_CONFIG, DATA_CHANNEL_LABEL };

@@ -1,9 +1,10 @@
 import '../css/styles.css';
-import { SIGNAL_SERVER } from './config';
 import Peer from './Peer';
 
+import { SIGNAL_SERVER, PEER_CONN_CONFIG } from './config';
+
 const ws = new WebSocket(SIGNAL_SERVER);
-let peer;
+let peer = new Peer();
 
 function sendMessage(type, data) {
   if (!ws || !ws.send) return;
@@ -11,34 +12,24 @@ function sendMessage(type, data) {
 }
 
 ws.onopen = function (_) {
-  peer = new Peer();
-  const des = peer.getDescription();
+  const desc = peer.getDescription();
   sendMessage('online', { desc });
 };
 
-ws.onmessage = function (evt) {
+ws.onmessage = async function (evt) {
   const { type, data } = JSON.parse(evt.data);
   switch (type) {
     case 'online':
-      handleOnline(data);
-      break;
-    case 'newPeer':
-      handleNewPeer(data);
-      break;
+      return handleOnline(data);
     case 'offer':
-      handleOffer(data);
-      break;
+      return await handleOffer(data);
     case 'answer':
-      handleAnswer(data);
-      break;
+      return await handleAnswer(data);
     case 'candidate':
-      handleCandidate(data);
-      break;
+      return await handleCandidate(data);
     case 'leave':
-      handleLeave(data);
-      break;
+      return handleLeave(data);
     default:
-      console.log(`Message ${type} is not support`);
   }
 };
 
@@ -46,51 +37,88 @@ ws.onclose = function (reason) {
   // sendMessage('leave', { peerId: ' peer.peerId ' });
 };
 
-ws.onerror = function (reason) {
-  // console.log('WS is error: Reason ', reason);
-};
+ws.onerror = function (reason) {};
 
 function handleOnline(data) {
-  // peers = data.peers;
-  // peer.peerId = data.peerId;
+  const {
+    peerId,
+    group: { groupId, peerIds },
+  } = data;
+
+  peer.init(peerId, groupId);
+  createConns(peerIds);
 }
 
-function handleNewPeer(data) {
-  // peers.push(data.newPeer);
+function createConns(peerIds) {
+  if (!peerIds.length) return;
+  Promise.all(
+    peerIds.map(async (receiverId) => {
+      const peerConn = new RTCPeerConnection(PEER_CONN_CONFIG);
+      peer.addPeerConn(receiverId, peerConn);
+
+      const offer = await peerConn.createOffer();
+      await peerConn.setLocalDescription(offer);
+
+      const groupId = peer.getGroupId();
+      const senderId = peer.getPeerId();
+
+      listenerIceCandidate({ peerConn, groupId, senderId, receiverId });
+      sendMessage('offer', {
+        groupId,
+        senderId,
+        receiverId,
+        offer,
+      });
+    }),
+  );
+}
+
+function listenerIceCandidate({ peerConn, ...rest }) {
+  peerConn.addEventListener('icecandidate', (event) => {
+    if (event.candidate) {
+      sendMessage('candidate', { candidate: event.candidate, ...rest });
+    }
+  });
 }
 
 async function handleOffer(data) {
-  // await peerConnection.setRemoteDescription(data.desc);
-  // receiverId = data.senderId;
-  // try {
-  //   const answer = await peerConnection.createAnswer();
-  //   await peerConnection.setLocalDescription(answer);
-  //   sendMessage('answer', { desc: answer, receiverId });
-  // } catch (err) {
-  //   onCreateSessionDescriptionError(err);
-  // }
+  const { senderId: receiverId, offer } = data;
+  const peerConn = new RTCPeerConnection(PEER_CONN_CONFIG);
+  peer.addPeerConn(receiverId, peerConn);
+
+  peerConn.setRemoteDescription(new RTCSessionDescription(offer));
+  const answer = await peerConn.createAnswer();
+  await peerConn.setLocalDescription(answer);
+
+  const senderId = peer.getPeerId();
+  const groupId = peer.getGroupId();
+
+  listenerIceCandidate({ peerConn, groupId, senderId, receiverId });
+  sendMessage('answer', { groupId, senderId, receiverId, answer });
 }
 
 async function handleAnswer(data) {
-  // const { desc } = data;
-  // await peerConnection.setRemoteDescription(desc);
+  const { senderId, answer } = data;
+  const remoteDesc = new RTCSessionDescription(answer);
+  const { peerConnId } = peer.getOtherPeer(senderId);
+  await peer.setRemoteDescription(peerConnId, remoteDesc);
 }
 
-function handleCandidate(data) {
-  // const { candidate } = data;
-  // peerConnection
-  //   .addIceCandidate(new RTCIceCandidate(candidate))
-  //   .then(onAddIceCandidateSuccess, onAddIceCandidateError);
+async function handleCandidate(data) {
+  const { senderId, candidate } = data;
+  const { peerConnId } = peer.getOtherPeer(senderId);
+  await peer.addIceCandidate(peerConnId, candidate);
 }
 
 function handleLeave(data) {
-  // const { peerId } = data;
-  // peers = peers.filter((peer) => peer.peerId !== peerId);
+  const { peerId } = data;
+  peer.removePeer(peerId);
 }
 
 const startButton = document.querySelector('button#startButton');
 startButton.addEventListener('click', () => {
-  // createConnection(peers[0]);
+  const data = new Uint8Array(2457);
+  peer.sendData('peerId', data);
 });
 
 const sendButton = document.querySelector('button#sendButton');

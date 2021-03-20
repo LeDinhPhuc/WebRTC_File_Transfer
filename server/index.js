@@ -4,12 +4,34 @@ const wss = new WebSocket.Server({
   port: 5000,
 });
 
-let peers = [];
+global.GROUPS = {};
+
+// GROUPS = {
+//   groupId: {
+//     desc: 'description',
+//     peers: [
+//       {
+//         peerId: 'uuidv4',
+//         connId: 'uuidv4',
+//         desc: 'desc',
+//       },
+//     ],
+//   },
+// };
+
+global.CONNS = {};
+
+const sendMessage = (client, type, data) => {
+  if (!client) return;
+  client.send(JSON.stringify({ type, data }));
+};
 
 wss.on('connection', (ws, req) => {
+  let groupId, peerId, connId;
+
   ws.on('message', (evt) => {
-    console.log('evt ', evt);
     const { type, data } = JSON.parse(evt);
+
     switch (type) {
       case 'online':
         return handleOnline(data);
@@ -22,72 +44,68 @@ wss.on('connection', (ws, req) => {
       case 'leave':
         return handleLeave(data);
       default:
-        console.log('Not support event ', type);
         break;
     }
   });
 
   const handleOnline = (data) => {
-    console.log('data ', data);
-    const peerId = uuidv4();
     const { desc } = data;
-    sendMessage(ws, 'online', { peerId, peers });
-    const newPeer = { peerId, ...desc };
-    peers.forEach((peer) => {
-      sendMessage(peer.connection, 'newPeer', { newPeer });
+    peerId = uuidv4();
+    connId = uuidv4();
+    CONNS[connId] = ws;
+    const newPeer = { peerId, connId, desc };
+
+    // FIXME: query suitable group
+    groupId = require('./services/groups').evaluate(desc);
+
+    let otherPeers = [];
+    if (groupId) {
+      otherPeers = [...require('./services/groups').getGroup(groupId).peers];
+      require('./services/groups').addPeer(groupId, newPeer);
+    } else {
+      groupId = uuidv4();
+      require('./services/groups').newGroup(groupId, newPeer);
+    }
+
+    sendMessage(ws, 'online', {
+      peerId,
+      group: {
+        groupId,
+        peerIds: otherPeers.map((peer) => peer.peerId),
+      },
     });
-    peers.push({ ...newPeer, connection: ws });
   };
+
   const handleOffer = (data) => {
-    const { receiverId, senderId, desc } = data;
-    const receiver = peers.find((peer) => peer.peerId === receiverId);
-    if (receiver) {
-      sendMessage(receiver.connection, 'offer', { senderId, desc });
-    } else {
-      console.log('Not found ', receiverId);
-    }
+    const { groupId, senderId, receiverId, offer } = data;
+
+    const peer = require('./services/groups').getPeer(groupId, receiverId);
+    if (!peer) return;
+    sendMessage(CONNS[peer.connId], 'offer', { senderId, offer });
   };
+
   const handleAnswer = (data) => {
-    const { receiverId } = data;
-    const receiver = peers.find((peer) => peer.peerId === receiverId);
-    if (receiver) {
-      sendMessage(receiver.connection, 'answer', data);
-    } else {
-      console.log('Answer event  not found ', receiverId);
-    }
+    const { groupId, senderId, receiverId, answer } = data;
+
+    const peer = require('./services/groups').getPeer(groupId, receiverId);
+    if (!peer) return;
+    sendMessage(CONNS[peer.connId], 'answer', { senderId, answer });
   };
+
   const handleCandidate = (data) => {
-    const receiver = peers.find((peer) => peer.peerId === data.receiverId);
-    if (receiver) {
-      sendMessage(receiver.connection, 'candidate', data);
-    } else {
-      console.log('Candidate event not found ', receiverId);
-    }
+    const { groupId, senderId, receiverId, candidate } = data;
+    const peer = require('./services/groups').getPeer(groupId, receiverId);
+
+    if (!peer) return;
+    sendMessage(CONNS[peer.connId], 'candidate', { senderId, candidate });
   };
 
   ws.onclose = (reason) => {
-    const index = peers.findIndex((peer) => peer.connection === ws);
-    if (index === -1) return;
+    delete CONNS[connId];
+    const peers = [...require('./services/groups').removePeer(groupId, peerId)];
 
-    const { peerId } = peers[index];
-    peers.splice(index, 1);
     peers.forEach((peer) => {
-      sendMessage(peer.connection, 'leave', { peerId });
+      sendMessage(CONNS[peer.connId], 'leave', { peerId });
     });
   };
 });
-
-const sendMessage = (client, type, data) => {
-  if (!client) return;
-  client.send(JSON.stringify({ type, data }));
-};
-
-// online
-// login
-// join
-// offer
-// answer
-// candidate
-// datachannel
-// leave
-// disconnect
