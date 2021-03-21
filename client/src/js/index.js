@@ -60,7 +60,7 @@ function createConns(peerIds) {
       await peerConn.setLocalDescription(offer);
 
       const groupId = peer.getGroupId();
-      const senderId = peer.getPeerId();
+      const senderId = peer.getMyPeerId();
 
       listenerIceCandidate({ peerConn, groupId, senderId, receiverId });
       sendMessage('offer', {
@@ -90,7 +90,7 @@ async function handleOffer(data) {
   const answer = await peerConn.createAnswer();
   await peerConn.setLocalDescription(answer);
 
-  const senderId = peer.getPeerId();
+  const senderId = peer.getMyPeerId();
   const groupId = peer.getGroupId();
 
   listenerIceCandidate({ peerConn, groupId, senderId, receiverId });
@@ -114,12 +114,6 @@ function handleLeave(data) {
   const { peerId } = data;
   peer.removePeer(peerId);
 }
-
-const startButton = document.querySelector('button#startButton');
-startButton.addEventListener('click', () => {
-  const data = new Uint8Array(2457);
-  peer.sendData('peerId', data);
-});
 
 const sendButton = document.querySelector('button#sendButton');
 sendButton.addEventListener('click', () => {

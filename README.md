@@ -34,7 +34,7 @@
     </tr>
     <tr>
       <td><b> PeerId </b></td>
-      <td align="center"> 24 </td> 
+      <td align="center"> 36 </td> 
       <td> String </td>
       <td> ID của người gửi </td>
     </tr>

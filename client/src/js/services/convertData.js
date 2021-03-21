@@ -28,7 +28,7 @@ function buf2JSON(buf) {
   return JSON.parse(stringify);
 }
 
-function str2Buf() {
+function str2Buf(string) {
   const u8Arr = new Uint8Array(new TextEncoder().encode(string));
   return u8Arr;
 }
